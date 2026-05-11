@@ -200,20 +200,6 @@ You need both for a complete system.
 | LlamaIndex connectors | 2022–present | Data connectors within LlamaIndex | Framework-specific; not portable |
 | AWS Bedrock Agents | 2023–present | Managed agent orchestration on AWS | Cloud-specific; AWS lock-in |
 
-### MCP vs Bedrock Agents
-
-A useful comparison since both relate to our project:
-
-| | MCP | AWS Bedrock Agents |
-|---|---|---|
-| **What it is** | Open protocol | Managed AWS service |
-| **Who runs the loop** | Your code (the host) | AWS infrastructure |
-| **Portability** | Any MCP-compatible client | AWS only |
-| **Complexity** | Lower (just an API endpoint) | Higher (action groups, OpenAPI schemas, knowledge bases) |
-| **Cost** | Pay for your own compute | AWS managed pricing |
-| **Best for** | Tools you want to share across AI clients | Fully managed agent workflows on AWS |
-
-Our project deliberately chose MCP because portability was a goal — we wanted the same tools to work in Claude, ChatGPT, and our web demo.
 
 ### Is MCP "state of the art"?
 
