@@ -398,8 +398,14 @@ const LINE_COLORS = {
 const MODE_COLORS = { walk:'#475569', bus:'#4ade80', tram:'#f472b6', subway:null };
 
 let routeLayers = [];
+let chatPinLayers = [];
 let clickMarkers = [];
 let clickState = 0;
+
+const PIN_COLORS = {
+  red: '#ef4444', green: '#4ade80', blue: '#818cf8',
+  yellow: '#fbbf24', purple: '#a855f7', orange: '#fb923c',
+};
 
 map.on('click', e => {
   const { lat, lng } = e.latlng;
@@ -729,6 +735,9 @@ function handleChatEvent(event, bubble, container) {
       if (toolBlock) toolBlock.after(routeCards);
       else container.parentNode.insertBefore(routeCards, container);
     }
+    if (event.tool === 'place_pins' && event.result && event.result.pins) {
+      drawChatPins(event.result.pins);
+    }
     scrollChat();
   }
 }
@@ -961,6 +970,26 @@ function renderInfraTable(stats) {
       <td>${owner}</td>
       <td style="text-align:right;font-family:monospace;">${(s.items || 0).toLocaleString()}</td>
       <td style="padding-left:6px;">${cadence}</td>`;
+  }
+}
+
+function drawChatPins(pins) {
+  chatPinLayers.forEach(m => map.removeLayer(m));
+  chatPinLayers = [];
+  if (!pins || !pins.length) return;
+  const bounds = [];
+  pins.forEach(p => {
+    const color = PIN_COLORS[p.color] || PIN_COLORS.blue;
+    const marker = L.circleMarker([p.lat, p.lon], {
+      radius: 9, color, fillColor: color, fillOpacity: 0.9, weight: 2,
+    }).bindPopup(`<div class="popup-title">${p.label}</div>`).addTo(map);
+    chatPinLayers.push(marker);
+    bounds.push([p.lat, p.lon]);
+  });
+  if (bounds.length === 1) {
+    map.setView(bounds[0], Math.max(map.getZoom(), 15));
+  } else if (bounds.length > 1) {
+    map.fitBounds(L.latLngBounds(bounds), { padding: [60, 60] });
   }
 }
 

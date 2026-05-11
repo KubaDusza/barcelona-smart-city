@@ -105,7 +105,38 @@ TOOL_GET_AIR_QUALITY = {
     },
 }
 
-ALL_TOOLS = [MCP_TOOL_GET_TRANSIT_ROUTE, TOOL_GET_BICING, TOOL_GET_TRANSIT_NEARBY, TOOL_GET_AIR_QUALITY]
+TOOL_PLACE_PINS = {
+    "name": "place_pins",
+    "description": (
+        "Place one or more highlighted pins on the map to show the user the locations being discussed. "
+        "Call this tool whenever you mention specific places, stations, stops, or landmarks — "
+        "use it alongside other tools (e.g. after get_bicing, pin the stations; after get_air_quality, "
+        "pin the monitoring station; when mentioning a neighbourhood, pin its centre). "
+        "Always prefer calling this so the user can see locations visually on the map."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "pins": {
+                "type": "array",
+                "description": "List of pins to place on the map.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "lat":   {"type": "number", "description": "Latitude (WGS-84)."},
+                        "lon":   {"type": "number", "description": "Longitude (WGS-84)."},
+                        "label": {"type": "string", "description": "Short label shown in the popup (e.g. station name, place name)."},
+                        "color": {"type": "string", "description": "Pin colour: red, green, blue, yellow, purple, orange. Default: blue."},
+                    },
+                    "required": ["lat", "lon", "label"],
+                },
+            },
+        },
+        "required": ["pins"],
+    },
+}
+
+ALL_TOOLS = [MCP_TOOL_GET_TRANSIT_ROUTE, TOOL_GET_BICING, TOOL_GET_TRANSIT_NEARBY, TOOL_GET_AIR_QUALITY, TOOL_PLACE_PINS]
 
 # ---------------------------------------------------------------------------
 # Tool execution
@@ -299,6 +330,9 @@ def run_tool(name: str, inputs: dict) -> Any:
         except Exception as e:
             return {"error": str(e), "stations": []}
 
+    if name == "place_pins":
+        return {"pins": inputs.get("pins", []), "placed": len(inputs.get("pins", []))}
+
     return {"error": f"Unknown tool: {name}"}
 
 
@@ -389,6 +423,9 @@ async def _chat_stream(user_message: str, history: list[dict], user_location: di
         "When the user mentions a street, neighbourhood, or landmark, look it up in the list above or infer "
         "approximate Barcelona coordinates and call the tools directly — do not ask for coordinates. "
         "When you call get_transit_route, present results briefly in text (the UI renders route cards automatically). "
+        "Use place_pins generously: whenever you mention specific locations, stations, stops, or landmarks, "
+        "pin them on the map so the user can see where they are. After get_bicing, pin the stations. "
+        "After get_air_quality, pin the monitoring station. When answering about a neighbourhood or landmark, pin it. "
         "Be concise. Respond in the same language the user writes in."
     )
 
