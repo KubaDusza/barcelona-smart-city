@@ -35,6 +35,9 @@ import requests
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+
+_READ_ONLY = ToolAnnotations(readOnlyHint=True)
 
 from transit_route_tool import get_transit_route as _get_transit_route
 
@@ -93,7 +96,7 @@ def _float(v: Any) -> float:
 # Tool: get_bicing
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_bicing(lat: float, lon: float, radius_m: int = 500, max_results: int = 5) -> dict:
     """
     Returns live Bicing bike-share station availability near a coordinate in Barcelona.
@@ -148,7 +151,7 @@ def get_bicing(lat: float, lon: float, radius_m: int = 500, max_results: int = 5
 # Tool: get_bicing_history
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_bicing_history(station_id: str, hours_back: int = 24) -> dict:
     """
     Returns historical Bicing availability snapshots for a specific station.
@@ -200,7 +203,7 @@ def get_bicing_history(station_id: str, hours_back: int = 24) -> dict:
 # Tool: get_transit_nearby
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_transit_nearby(lat: float, lon: float, radius_m: int = 400, max_results: int = 8) -> dict:
     """
     Returns nearby TMB metro and bus stops near a coordinate in Barcelona,
@@ -259,7 +262,7 @@ def get_transit_nearby(lat: float, lon: float, radius_m: int = 400, max_results:
 # Tool: get_transit_route
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_transit_route(
     origin_lat: float,
     origin_lon: float,
@@ -326,7 +329,7 @@ def _aq_status(pollutant: str, value: float) -> str:
     return "very poor"
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_air_quality(lat: float, lon: float, max_stations: int = 2) -> dict:
     """
     Returns the latest air quality readings (NO2, PM10, O3, CO) from the nearest
@@ -394,7 +397,7 @@ def get_air_quality(lat: float, lon: float, max_stations: int = 2) -> dict:
 # Tool: get_air_quality_history
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_air_quality_history(
     station_name: str,
     pollutant: str,
@@ -464,7 +467,7 @@ def get_air_quality_history(
 # Tool: get_weather
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_weather() -> dict:
     """
     Returns the current weather in Barcelona city center (temperature, humidity,
@@ -528,7 +531,7 @@ def _burn_minutes(uvi: float) -> int | None:
     return max(5, round(200 / (3 * uvi)))
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_uv_index() -> dict:
     """
     Returns the current UV index for Barcelona, today's hourly forecast, and
@@ -632,7 +635,7 @@ def _pollen_level(species: str, value: float | None) -> str:
     return "very high"
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_pollen(hours_ahead: int = 24) -> dict:
     """
     Returns the current and forecast pollen levels for Barcelona for 6 allergen
@@ -743,7 +746,7 @@ def get_pollen(hours_ahead: int = 24) -> dict:
 # Tool: get_uv_history
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_uv_history(hours_back: int = 48) -> dict:
     """
     Returns historical UV index readings for Barcelona stored in DynamoDB.
@@ -807,7 +810,7 @@ _VALID_POLLEN_SPECIES = [
     "ragweed_pollen", "alder_pollen", "mugwort_pollen",
 ]
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 def get_pollen_history(species: str, hours_back: int = 48) -> dict:
     """
     Returns historical pollen readings for a specific species stored in
@@ -893,11 +896,14 @@ def _build_tool_list() -> list[dict]:
     """Return MCP tools/list response content from FastMCP's registered tools."""
     tools = []
     for t in mcp._tool_manager.list_tools():
-        tools.append({
+        entry = {
             "name":        t.name,
             "description": t.description,
             "inputSchema": t.parameters,
-        })
+        }
+        if t.annotations:
+            entry["annotations"] = t.annotations.model_dump(exclude_none=True)
+        tools.append(entry)
     return tools
 
 
