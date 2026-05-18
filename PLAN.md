@@ -19,41 +19,23 @@ The arc:
 
 ## How Bedrock Agents work (technical briefing)
 
-Bedrock AgentCore (GA October 2025) is the managed orchestration layer:
+Bedrock AgentCore (GA October 2025) is AWS's managed agent orchestration layer. You give it an instruction prompt and a set of tools; it handles the reasoning loop — deciding which tools to call, calling them, and assembling a final answer.
+
+The key point for us: **AgentCore Gateway supports MCP servers natively**. That means our existing MCP endpoint can be wired directly into a Bedrock Agent with no rewiring of our data layer. Setup effort is roughly 1–2 hours for a working agent.
 
 ```
 User input
     │
     ▼
-Bedrock Agent (instruction prompt + model choice)
+Bedrock Agent (instruction prompt + model)
     │  decides which tool to call, in a loop
     ▼
-AgentCore Gateway ──► our MCP server (HTTPS)
+AgentCore Gateway ──► our MCP server
                          └── 11 tools → DynamoDB / live APIs
     │
     ▼
-Agent assembles final answer → streamed back to caller
+Answer streamed back to the calling app
 ```
-
-**How we invoke it from Python (boto3):**
-```python
-import boto3
-client = boto3.client("bedrock-agent-runtime", region_name="eu-west-1")
-response = client.invoke_agent(
-    agentId="AGENT_ID",
-    agentAliasId="TSTALIASID",
-    sessionId="user-session-123",
-    inputText="Is the air quality okay for a run in Gràcia today?"
-)
-for event in response["completion"]:
-    print(event["chunk"]["bytes"].decode())
-```
-
-**Setup effort: ~1–2 hours** for a working agent. No model training, no GPU, no hosting.
-
-**Model:** Claude Sonnet 4.6 is available in eu-west-1 — use that.
-
-**MCP connection:** AgentCore Gateway can connect directly to our existing MCP endpoint via its "MCP server" integration type. No Lambda wrappers needed — point it at `https://9llxtl8mm3.execute-api.eu-west-1.amazonaws.com/mcp` and the gateway handles tool discovery and calling.
 
 ---
 
@@ -61,99 +43,34 @@ for event in response["completion"]:
 
 ### App 1 — AI Map Dashboard (web app)
 
-A public-facing website where a chatbot has live city data *and can control the map*.
-
-**What makes this different from the current demo:**
-The current demo (`demo/app.py`) is a basic Claude chat with tool dispatch — it returns text. The new app has the AI as a **map controller**: it can drop pins, draw routes, toggle data overlays, and generate mini dashboards — all in response to natural language. The user talks; the map responds.
-
-**Architecture:**
-```
-Browser
-  ├── Leaflet map (interactive)
-  ├── Chat panel
-  └── Dashboard panel (charts)
-         │ WebSocket
-         ▼
-    FastAPI server (AWS EC2 or ECS)
-         │ invoke_agent
-         ▼
-    Bedrock Agent (Claude Sonnet 4.6)
-         │ AgentCore Gateway
-         ▼
-    Our MCP server (11 tools, DynamoDB)
-```
-
-**AI map-control tools** (frontend-side, not MCP — the agent calls these to update the UI):
-- `place_pin(lat, lon, label, color)` — drop a marker on the map
-- `show_route(from_lat, from_lon, to_lat, to_lon)` — draw a route polyline
-- `show_data_layer(type)` — toggle air quality / Bicing / transit overlays
-- `zoom_to(location_name)` — fly the map to a neighbourhood or landmark
-- `show_chart(metric, time_range)` — render a chart in the dashboard panel
-
-When the agent calls `get_bicing` via MCP *and* calls `place_pin` for each station, the user sees the result both as text and visually on the map.
-
-**Example interaction:**
-> "Show me Bicing stations near Sagrada Família with available bikes"
-→ Agent calls `get_bicing(41.4036, 2.1744)` via MCP, then calls `place_pin` for each result → green pins appear on the map + text summary in chat
+A public-facing website where a chatbot has live city data *and can control the map*. The key differentiator from the current demo is that the AI doesn't just reply with text — it acts on the map and generates visual output in response to natural language.
 
 **Required:**
-- Uses Bedrock Agent (Claude Sonnet 4.6, eu-west-1)
-- Uses our MCP server via AgentCore Gateway
-- Hosted on AWS (EC2 or ECS, public URL)
-- Map shows routes, pins, data overlays driven by AI
+- Uses AWS Bedrock (any model) and our MCP server
+- Has an interactive map the AI can control: show locations, routes, and data overlays
+- AI can generate dynamic dashboards — charts, metric cards — in response to a query
+- Publicly hosted on AWS (not running locally)
 
 **Nice to have:**
-- Bedrock Knowledge Base (RAG over static Barcelona neighbourhood info)
-- Conversation memory across sessions (Bedrock session state)
+- Conversation memory across sessions
 - Bedrock Guardrails (block off-topic queries)
+- RAG over static Barcelona neighbourhood info
 
 ---
 
-### App 2 — Telegram Bot (José)
+### App 2 — Telegram Bot *(proposed for José)*
 
 A Telegram bot users can message to ask about Barcelona city conditions, plus an optional alert subscription system.
 
-**Architecture:**
-```
-Telegram user
-      │ message
-      ▼
-Telegram Bot API (webhook)
-      │
-      ▼
-Lambda: telegram_webhook
-      │ invoke_agent
-      ▼
-Bedrock Agent (same agent as web app, or separate)
-      │ AgentCore Gateway → MCP server
-      ▼
-Response → Telegram message back to user
-
-Alert system (separate):
-EventBridge (hourly) → Lambda: alert_checker
-      │ reads AirQualityReadings / PollenData
-      │ compares against thresholds
-      └── if threshold crossed → send Telegram message to subscribers
-              └── subscriptions stored in DynamoDB: AlertSubscriptions table
-```
-
 **Required:**
-- Uses Bedrock Agent + our MCP server
-- Users can send messages and get city data answers
-- Bot must be deployed (public webhook, not polling locally)
-- Must use at least 2 of our MCP data tools
+- Uses AWS Bedrock and our MCP server
+- Users can send messages and get real city data answers
+- Deployed publicly (not running locally)
 
-**Nice to have (if time allows):**
-- `/subscribe airquality eixample` — user subscribes to threshold alerts for a neighbourhood
-- `/subscribe pollen grass` — pollen alert when grass level hits "high"
-- `/unsubscribe` and `/status` commands
-- Alert system: hourly Lambda checks readings, sends Telegram messages to subscribers
-- Formatted responses with emoji / markdown (Telegram supports it)
-
-**For José to decide:**
-- Which Bedrock model to use (Haiku for speed/cost, Sonnet for quality)
-- Whether to use Bedrock Agents or raw `bedrock-runtime` with manual tool dispatch (simpler to start, agents are better long-term)
-- Subscription storage schema (suggest: PK=`chat_id`, SK=`type#location`)
+**Nice to have:**
+- Users can subscribe to alerts for air quality or pollen crossing a threshold in a chosen area
+- Subscription management commands (`/subscribe`, `/unsubscribe`, `/status`)
+- Formatted, readable responses (Telegram supports markdown)
 
 ---
 
@@ -186,36 +103,30 @@ EventBridge (hourly) → Lambda: alert_checker
 Assignments TBD by the team — tasks are listed by area, not person. Exception: **Telegram bot is proposed for José** since he's already been experimenting with it.
 
 ### Bedrock Agent setup
-1. Create Bedrock Agent in AWS console (eu-west-1, Claude Sonnet 4.6)
-   - Write the agent instruction prompt
-   - Connect AgentCore Gateway to our MCP server endpoint
-   - Test with `invoke_agent` from Python
+- Set up a Bedrock Agent connected to our MCP server
+- Write the agent instruction prompt for a Barcelona city assistant
+- Verify it correctly uses our tools and returns useful answers
 
 ### Web app (rewrite)
-1. FastAPI backend — streams Bedrock Agent responses via WebSocket
-2. Frontend map-control tool schema (`place_pin`, `show_route`, `show_data_layer`, `zoom_to`, `show_chart`)
-3. New Leaflet frontend with chat panel + map + dashboard panel
-4. Deploy to AWS (EC2 or ECS, public URL)
+- Has an interactive map and a chat interface
+- AI agent can control the map in response to user queries (show locations, routes, data overlays)
+- AI can generate dynamic dashboards with charts and metric cards
+- Publicly hosted on AWS
 
-### Dashboard panel
-1. Chart.js charts rendered when agent calls `show_chart`
-2. Tune the agent prompt for composite queries ("Is today a good day to be outside?" → calls weather + UV + pollen + air quality together)
+### Agent prompt tuning
+- Agent handles composite queries well ("Is today a good day to be outside?" should trigger weather + UV + pollen + air quality together)
 
 ### Alert system
-1. DynamoDB `AlertSubscriptions` table — stores subscriptions (chat_id, type, location, threshold)
-2. Alert checker Lambda — runs hourly, reads latest readings, compares against WHO thresholds, sends notifications to subscribers
+- Users can subscribe to air quality or pollen alerts for a chosen area
+- System checks readings periodically and notifies subscribers when thresholds are crossed
 
 ### Air quality polish
-1. Expand station coverage beyond the current 4 hardcoded stations
-2. Ensure tool descriptions guide the agent toward good reasoning (e.g. when to recommend staying indoors)
+- Expand coverage beyond the current 4 stations so more of Barcelona is answered accurately
 
 ### José — Telegram bot *(proposed)*
-1. Set up Telegram bot via BotFather, get token
-2. Lambda: `telegram_webhook` — handles incoming messages, calls Bedrock Agent, sends response back
-3. Deploy webhook (Lambda + API Gateway) — public HTTPS endpoint for Telegram to POST to
-4. Test with real MCP tool queries
-5. *(Nice to have)* Alert subscription commands (`/subscribe airquality eixample`, `/subscribe pollen grass`, `/unsubscribe`, `/status`)
-6. *(Nice to have)* Wire into the alert system Lambda
+- Bot responds to user messages with real city data via Bedrock + our MCP server
+- Deployed publicly
+- *(Nice to have)* Alert subscriptions — users can subscribe/unsubscribe and receive threshold alerts
 
 ---
 
