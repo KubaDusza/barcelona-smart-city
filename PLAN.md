@@ -183,38 +183,39 @@ EventBridge (hourly) → Lambda: alert_checker
 
 ## Task breakdown
 
-### Jakub — Web app + Bedrock Agent setup
-1. **Set up Bedrock Agent** in AWS console (eu-west-1, Claude Sonnet 4.6)
+Assignments TBD by the team — tasks are listed by area, not person. Exception: **Telegram bot is proposed for José** since he's already been experimenting with it.
+
+### Bedrock Agent setup
+1. Create Bedrock Agent in AWS console (eu-west-1, Claude Sonnet 4.6)
    - Write the agent instruction prompt
    - Connect AgentCore Gateway to our MCP server endpoint
    - Test with `invoke_agent` from Python
-2. **Rewrite web app** (new `app/` folder, not modifying `demo/`)
-   - FastAPI backend: streams Bedrock Agent responses via WebSocket
-   - Implement frontend map-control tool schema (the `place_pin`, `show_route` etc. tools)
-   - Agent uses both MCP tools (city data) and map-control tools (UI updates)
-3. **New Leaflet frontend** with chat panel + map + dashboard panel
-4. **Deploy to AWS** (EC2 or ECS, public URL, behind a simple domain or raw IP)
 
-### Mark — Air quality alerts + Bedrock integration polish
-1. **DynamoDB AlertSubscriptions table** — schema for storing user subscriptions (chat_id, type, location, threshold)
-2. **Alert checker Lambda** — runs hourly (piggyback on existing EventBridge), reads latest AirQualityReadings, compares against WHO thresholds, triggers notifications
-3. **Polish air quality MCP tool** — add more stations, ensure descriptions are good for agent reasoning
-4. **Help with Bedrock Agent instruction prompt** — the agent needs to know when to recommend staying indoors vs going out
+### Web app (rewrite)
+1. FastAPI backend — streams Bedrock Agent responses via WebSocket
+2. Frontend map-control tool schema (`place_pin`, `show_route`, `show_data_layer`, `zoom_to`, `show_chart`)
+3. New Leaflet frontend with chat panel + map + dashboard panel
+4. Deploy to AWS (EC2 or ECS, public URL)
 
-### Jia — Web app dashboard + weather integration
-1. **Dashboard panel** in the web app frontend — Chart.js charts rendered when agent calls `show_chart`
-2. **Weather integration in web app** — ensure `get_weather` tool is prominent in the agent's reasoning for composite queries
-3. **"Is today a good day to be outside?" composite workflow** — test and tune the agent prompt so it naturally calls weather + UV + pollen + air quality together
-4. **Deployment support** — help with EC2/ECS setup and public domain
+### Dashboard panel
+1. Chart.js charts rendered when agent calls `show_chart`
+2. Tune the agent prompt for composite queries ("Is today a good day to be outside?" → calls weather + UV + pollen + air quality together)
 
-### José — Telegram bot
-1. **Set up Telegram bot** via BotFather, get token
-2. **Lambda: telegram_webhook** — handles incoming messages, calls Bedrock Agent, sends response back
-3. **Connect to Bedrock Agent** — use the same agent Jakub sets up, or a separate lighter one (Haiku)
-4. **Deploy webhook** (Lambda + API Gateway) — public HTTPS endpoint for Telegram to POST to
-5. **Test with real queries** using our MCP tools
-6. *(Nice to have)* Alert subscription commands (`/subscribe`, `/unsubscribe`, `/status`)
-7. *(Nice to have)* AlertSubscriptions DynamoDB table + alert-checker Lambda integration
+### Alert system
+1. DynamoDB `AlertSubscriptions` table — stores subscriptions (chat_id, type, location, threshold)
+2. Alert checker Lambda — runs hourly, reads latest readings, compares against WHO thresholds, sends notifications to subscribers
+
+### Air quality polish
+1. Expand station coverage beyond the current 4 hardcoded stations
+2. Ensure tool descriptions guide the agent toward good reasoning (e.g. when to recommend staying indoors)
+
+### José — Telegram bot *(proposed)*
+1. Set up Telegram bot via BotFather, get token
+2. Lambda: `telegram_webhook` — handles incoming messages, calls Bedrock Agent, sends response back
+3. Deploy webhook (Lambda + API Gateway) — public HTTPS endpoint for Telegram to POST to
+4. Test with real MCP tool queries
+5. *(Nice to have)* Alert subscription commands (`/subscribe airquality eixample`, `/subscribe pollen grass`, `/unsubscribe`, `/status`)
+6. *(Nice to have)* Wire into the alert system Lambda
 
 ---
 
@@ -222,12 +223,12 @@ EventBridge (hourly) → Lambda: alert_checker
 
 | Days | Milestone |
 |------|-----------|
-| 1–2 | Bedrock Agent up, connected to MCP, responding via `invoke_agent` (Jakub) |
-| 1–3 | Telegram bot responding to messages via Bedrock (José) |
-| 3–5 | Web app: map + chat working, AI can drop pins and show routes (Jakub) |
-| 3–5 | Dashboard panel working in web app (Jia) |
+| 1–2 | Bedrock Agent up, connected to MCP, responding via `invoke_agent` |
+| 1–3 | Telegram bot responding to messages via Bedrock |
+| 3–5 | Web app: map + chat working, AI can drop pins and show routes |
+| 3–5 | Dashboard panel working in web app |
 | 5–7 | Both apps deployed publicly on AWS |
-| 7–10 | Alert system (Mark + José) |
+| 7–10 | Alert system |
 | 10–12 | End-to-end demo rehearsal, edge case fixes |
 | 12–14 | Presentation slides updated, final polish |
 
