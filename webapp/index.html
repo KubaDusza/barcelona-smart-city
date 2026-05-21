@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barcelona City Assistant</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    background: #f8f9fa;
+    color: #1a1a2e;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    width: 100%;
+    padding: 14px 24px;
+    background: #fff;
+    border-bottom: 1px solid #e2e5ea;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+  .live-pill {
+    font-size: 10px; font-weight: 600; letter-spacing: .05em;
+    background: #eaf5ea; color: #2d7d46;
+    border: 1px solid #c3e6cb;
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .header-sub { font-size: 11px; color: #9ca3af; margin-left: auto; }
+
+  .chat-wrapper {
+    width: 100%; max-width: 720px;
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+    padding: 0 16px;
+  }
+
+  /* ── Messages ── */
+  .messages {
+    flex: 1; overflow-y: auto;
+    padding: 24px 0 12px;
+    display: flex; flex-direction: column; gap: 16px;
+    scroll-behavior: smooth;
+  }
+
+  .msg { display: flex; flex-direction: column; gap: 6px; max-width: 88%; }
+  .msg.user      { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+
+  .bubble {
+    padding: 11px 15px; border-radius: 16px;
+    font-size: 14px; line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .msg.user .bubble {
+    background: #2563eb; color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.assistant .bubble {
+    background: #fff; color: #1a1a2e;
+    border-bottom-left-radius: 4px;
+    border: 1px solid #e2e5ea;
+  }
+  .bubble strong { color: inherit; font-weight: 600; }
+  .bubble em { color: #6b7280; }
+  .bubble code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: "Menlo", "Consolas", monospace; }
+  .bubble h2, .bubble h3 { font-size: 14px; font-weight: 600; margin: 8px 0 3px; }
+  .bubble ul, .bubble ol { padding-left: 18px; margin: 4px 0; }
+  .bubble li { margin: 2px 0; }
+  .bubble hr { border: none; border-top: 1px solid #e2e5ea; margin: 8px 0; }
+
+  /* ── Agent activity ── */
+  .agent-activity { display: flex; flex-direction: column; gap: 3px; }
+
+  .tool-block {
+    background: #fff;
+    border: 1px solid #e2e5ea;
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+
+  .tool-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 12px;
+    cursor: pointer; user-select: none;
+    transition: background .12s;
+  }
+  .tool-header:hover { background: #f8f9fa; }
+
+  .tool-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase;
+    background: #eff6ff; color: #2563eb;
+    border: 1px solid #bfdbfe;
+    padding: 1px 6px; border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .tool-name {
+    font-family: "Menlo", "Consolas", monospace;
+    font-size: 12px; color: #374151; flex: 1;
+  }
+  .tool-name .tool-prefix { color: #9ca3af; }
+  .tool-chevron {
+    font-size: 10px; color: #9ca3af;
+    transition: transform .18s; flex-shrink: 0;
+  }
+  .tool-block.open .tool-chevron { transform: rotate(90deg); }
+
+  .tool-body { display: none; border-top: 1px solid #f3f4f6; }
+  .tool-block.open .tool-body { display: block; }
+
+  .tool-section { border-top: 1px solid #f3f4f6; }
+  .tool-section:first-child { border-top: none; }
+  .tool-section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; padding: 6px 12px 2px; color: #9ca3af;
+  }
+  .tool-json {
+    padding: 4px 12px 10px;
+    font-size: 11px; font-family: "Menlo", "Consolas", monospace;
+    white-space: pre-wrap; overflow-x: auto;
+    max-height: 220px; line-height: 1.5; color: #374151;
+  }
+  .j-key  { color: #7c3aed; }
+  .j-str  { color: #059669; }
+  .j-num  { color: #b45309; }
+  .j-bool { color: #dc2626; }
+  .j-null { color: #9ca3af; }
+
+  /* ── Suggestions ── */
+  .suggestions { display: flex; flex-wrap: wrap; gap: 7px; padding: 2px 0 0; }
+  .sug-btn {
+    background: #fff; border: 1px solid #d1d5db;
+    color: #374151; padding: 5px 12px; border-radius: 999px;
+    font-size: 12px; cursor: pointer; transition: all .15s;
+    font-family: inherit;
+  }
+  .sug-btn:hover { border-color: #2563eb; color: #2563eb; }
+
+  /* ── Thinking ── */
+  .thinking {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #9ca3af;
+    padding: 11px 15px;
+    background: #fff; border-radius: 16px; border-bottom-left-radius: 4px;
+    border: 1px solid #e2e5ea;
+  }
+  .dots span {
+    display: inline-block; width: 5px; height: 5px;
+    border-radius: 50%; background: #9ca3af;
+    animation: bounce .9s infinite; margin: 0 1px;
+  }
+  .dots span:nth-child(2) { animation-delay: .15s; }
+  .dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+  /* ── Input ── */
+  .input-row {
+    display: flex; gap: 8px;
+    padding: 10px 0 20px; flex-shrink: 0;
+  }
+  #input {
+    flex: 1;
+    background: #fff; border: 1px solid #d1d5db; border-radius: 24px;
+    padding: 11px 18px; color: #1a1a2e; font-size: 14px;
+    outline: none; transition: border-color .15s; font-family: inherit;
+  }
+  #input:focus { border-color: #2563eb; }
+  #input::placeholder { color: #9ca3af; }
+  #send {
+    background: #2563eb; border: none; border-radius: 50%;
+    width: 44px; height: 44px; color: #fff; font-size: 17px;
+    cursor: pointer; flex-shrink: 0; transition: background .15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #send:hover:not(:disabled) { background: #1d4ed8; }
+  #send:disabled { background: #d1d5db; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Barcelona City Assistant</h1>
+  <span class="live-pill">Live data</span>
+  <span class="header-sub">AWS Bedrock + MCP</span>
+</header>
+
+<div class="chat-wrapper">
+  <div class="messages" id="messages">
+    <div class="msg assistant">
+      <div class="bubble">Hi! I'm your Barcelona city assistant. Ask me about getting around, air quality, weather, Bicing bikes, UV index, or pollen.</div>
+      <div class="suggestions">
+        <button class="sug-btn" onclick="send('Is today a good day to cycle in Barcelona?')">Good day to cycle?</button>
+        <button class="sug-btn" onclick="send('What is the air quality near Eixample right now?')">Air quality near Eixample</button>
+        <button class="sug-btn" onclick="send('Are there Bicing bikes near Sagrada Familia?')">Bicing near Sagrada Familia</button>
+        <button class="sug-btn" onclick="send('What is the weather and UV like today?')">Weather and UV today</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-row">
+    <input id="input" placeholder="Ask about Barcelona..." autocomplete="off"
+           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}">
+    <button id="send" onclick="send()">&#8593;</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://386ccled52.execute-api.eu-west-1.amazonaws.com/prod/chat";
+
+const FOLLOW_UPS = [
+  "What pollen levels should I expect this week?",
+  "How do I get from Gracia to Barceloneta by transit?",
+  "Which area has the best air quality right now?",
+  "Is it safe to run outside today?",
+  "What is the UV risk this afternoon?",
+  "Are there bikes available near Placa Catalunya?",
+];
+
+let history = [];
+let busy    = false;
+let followIdx = 0;
+
+const messagesEl = document.getElementById("messages");
+const inputEl    = document.getElementById("input");
+const sendBtn    = document.getElementById("send");
+
+function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+function renderMd(text) {
+  return text
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*([^*\n]+?)\*/g,"<em>$1</em>")
+    .replace(/`([^`]+?)`/g,"<code>$1</code>")
+    .replace(/^#{2,3} (.+)$/gm,"<h3>$1</h3>")
+    .replace(/^## (.+)$/gm,"<h2>$1</h2>")
+    .replace(/^[-] (.+)$/gm,"<li>$1</li>")
+    .replace(/(<li>[\s\S]*?<\/li>)/g,"<ul>$1</ul>")
+    .replace(/\n{2,}/g,"<br><br>")
+    .replace(/\n/g,"<br>");
+}
+
+function hlJson(val, depth) {
+  depth = depth || 0;
+  if (val === null) return '<span class="j-null">null</span>';
+  if (typeof val === "boolean") return `<span class="j-bool">${val}</span>`;
+  if (typeof val === "number")  return `<span class="j-num">${val}</span>`;
+  if (typeof val === "string")  return `<span class="j-str">${escHtml(JSON.stringify(val))}</span>`;
+  const pad  = "  ".repeat(depth);
+  const pad1 = "  ".repeat(depth + 1);
+  if (Array.isArray(val)) {
+    if (!val.length) return "[]";
+    const items = val.map(v => pad1 + hlJson(v, depth + 1)).join(",\n");
+    return `[\n${items}\n${pad}]`;
+  }
+  const keys = Object.keys(val);
+  if (!keys.length) return "{}";
+  const items = keys.map(k =>
+    `${pad1}<span class="j-key">${escHtml(JSON.stringify(k))}</span>: ${hlJson(val[k], depth + 1)}`
+  ).join(",\n");
+  return `{\n${items}\n${pad}}`;
+}
+
+function buildToolBlock(tc) {
+  const rawName   = tc.tool || "";
+  const shortName = rawName.replace(/^barcelona-mcp-server___/, "");
+  const prefix    = rawName !== shortName ? "barcelona-mcp-server___" : "";
+
+  const block = document.createElement("div");
+  block.className = "tool-block";
+
+  const header = document.createElement("div");
+  header.className = "tool-header";
+
+  const badge = document.createElement("span");
+  badge.className = "tool-badge";
+  badge.textContent = "tool call";
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "tool-name";
+  nameEl.innerHTML = `<span class="tool-prefix">${escHtml(prefix)}</span>${escHtml(shortName)}`;
+
+  const chevron = document.createElement("span");
+  chevron.className = "tool-chevron";
+  chevron.textContent = "▶";
+
+  header.appendChild(badge);
+  header.appendChild(nameEl);
+  header.appendChild(chevron);
+  header.addEventListener("click", function() { block.classList.toggle("open"); });
+  block.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "tool-body";
+
+  if (tc.input !== undefined) {
+    const sec = document.createElement("div");
+    sec.className = "tool-section";
+    sec.innerHTML = '<div class="tool-section-label">Input</div>';
+    const pre = document.createElement("div");
+    pre.className = "tool-json";
+    pre.innerHTML = hlJson(tc.input, 0);
+    sec.appendChild(pre);
+    body.appendChild(sec);
+  }
+
+  if (tc.result !== undefined) {
+    const sec = document.createElement("div");
+    sec.className = "tool-section";
+    sec.innerHTML = '<div class="tool-section-label">Result</div>';
+    const pre = document.createElement("div");
+    pre.className = "tool-json";
+    pre.innerHTML = hlJson(tc.result, 0);
+    sec.appendChild(pre);
+    body.appendChild(sec);
+  }
+
+  block.appendChild(body);
+  return block;
+}
+
+function addMsg(role, text, toolCalls) {
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+
+  if (role === "user") {
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    div.appendChild(bubble);
+  } else {
+    if (toolCalls && toolCalls.length) {
+      const activity = document.createElement("div");
+      activity.className = "agent-activity";
+      toolCalls.forEach(function(tc) { activity.appendChild(buildToolBlock(tc)); });
+      div.appendChild(activity);
+    }
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = renderMd(text);
+    div.appendChild(bubble);
+
+    const followUp = FOLLOW_UPS[followIdx % FOLLOW_UPS.length];
+    followIdx++;
+    const sugg = document.createElement("div");
+    sugg.className = "suggestions";
+    const btn = document.createElement("button");
+    btn.className = "sug-btn";
+    btn.textContent = followUp;
+    btn.addEventListener("click", function() { send(followUp); });
+    sugg.appendChild(btn);
+    div.appendChild(sugg);
+  }
+
+  messagesEl.appendChild(div);
+  scrollBottom();
+}
+
+function addThinking() {
+  const div = document.createElement("div");
+  div.className = "msg assistant";
+  const inner = document.createElement("div");
+  inner.className = "thinking";
+  inner.innerHTML = "Thinking<span class='dots'><span></span><span></span><span></span></span>";
+  div.appendChild(inner);
+  messagesEl.appendChild(div);
+  scrollBottom();
+  return div;
+}
+
+function escHtml(t) {
+  return String(t)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;");
+}
+
+async function send(prefill) {
+  if (busy) return;
+  const text = (prefill !== undefined ? String(prefill) : inputEl.value).trim();
+  if (!text) return;
+
+  inputEl.value = "";
+  busy = true;
+  sendBtn.disabled = true;
+
+  addMsg("user", text);
+  const thinking = addThinking();
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history: history }),
+    });
+    const data = await res.json();
+    thinking.remove();
+
+    if (data.error) {
+      addMsg("assistant", "Sorry, something went wrong: " + data.error);
+    } else {
+      addMsg("assistant", data.response, data.tool_calls);
+      history.push({ role: "user",      content: text });
+      history.push({ role: "assistant", content: data.response });
+      if (history.length > 12) history = history.slice(-12);
+    }
+  } catch (e) {
+    thinking.remove();
+    addMsg("assistant", "Sorry, I could not reach the server. Please try again.");
+  }
+
+  busy = false;
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+inputEl.focus();
+</script>
+</body>
+</html>
