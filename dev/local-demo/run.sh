@@ -1,12 +1,12 @@
 #!/bin/bash
-# Starts the Barcelona Smart City demo server.
+# Starts the Barcelona Smart City local demo server.
 # AWS credentials are picked up from ~/.aws/credentials / IAM role / env vars
 # (standard boto3 credential chain — no manual env setup needed).
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT"
 source venv/bin/activate
 
 # Defaults — override by setting env vars before running this script
@@ -22,4 +22,5 @@ echo "  DynamoDB : $DYNAMO_REGION"
 echo "  URL      : http://localhost:8765"
 echo ""
 
-python3 -m uvicorn demo.app:app --port 8765 --reload
+cd dev/local-demo
+python3 -m uvicorn app:app --port 8765 --reload

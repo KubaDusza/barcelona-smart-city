@@ -16,8 +16,10 @@ Each test prints PASS / FAIL and the key result fields.
 
 from __future__ import annotations
 
+import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from transit_route_tool import get_transit_route, _print_route_result
 
 

@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>Barcelona City Assistant</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -14,18 +17,18 @@
     height: 100dvh;
     display: flex;
     flex-direction: column;
-    align-items: center;
   }
 
   header {
     width: 100%;
-    padding: 14px 24px;
+    padding: 10px 20px;
     background: #fff;
     border-bottom: 1px solid #e2e5ea;
     display: flex;
     align-items: center;
     gap: 12px;
     flex-shrink: 0;
+    z-index: 1000;
   }
   header h1 { font-size: 15px; font-weight: 600; color: #1a1a2e; }
   .live-pill {
@@ -36,27 +39,32 @@
   }
   .header-sub { font-size: 11px; color: #9ca3af; margin-left: auto; }
 
-  .chat-wrapper {
-    width: 100%; max-width: 720px;
-    flex: 1; display: flex; flex-direction: column; min-height: 0;
-    padding: 0 16px;
+  .main-layout {
+    flex: 1; display: flex; min-height: 0;
   }
 
-  /* ── Messages ── */
+  /* ── Left panel: chat ── */
+  .chat-panel {
+    width: 38%; min-width: 320px;
+    display: flex; flex-direction: column;
+    border-right: 1px solid #e2e5ea;
+    background: #f8f9fa;
+  }
+
   .messages {
     flex: 1; overflow-y: auto;
-    padding: 24px 0 12px;
-    display: flex; flex-direction: column; gap: 16px;
+    padding: 16px 14px 8px;
+    display: flex; flex-direction: column; gap: 14px;
     scroll-behavior: smooth;
   }
 
-  .msg { display: flex; flex-direction: column; gap: 6px; max-width: 88%; }
+  .msg { display: flex; flex-direction: column; gap: 5px; max-width: 92%; }
   .msg.user      { align-self: flex-end; align-items: flex-end; }
   .msg.assistant { align-self: flex-start; }
 
   .bubble {
-    padding: 11px 15px; border-radius: 16px;
-    font-size: 14px; line-height: 1.6;
+    padding: 10px 14px; border-radius: 14px;
+    font-size: 13px; line-height: 1.55;
     white-space: pre-wrap;
   }
   .msg.user .bubble {
@@ -70,46 +78,47 @@
   }
   .bubble strong { color: inherit; font-weight: 600; }
   .bubble em { color: #6b7280; }
-  .bubble code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: "Menlo", "Consolas", monospace; }
-  .bubble h2, .bubble h3 { font-size: 14px; font-weight: 600; margin: 8px 0 3px; }
-  .bubble ul, .bubble ol { padding-left: 18px; margin: 4px 0; }
+  .bubble code { background: #f3f4f6; padding: 1px 4px; border-radius: 3px; font-size: 11px; font-family: "Menlo", monospace; }
+  .bubble h2, .bubble h3 { font-size: 13px; font-weight: 600; margin: 6px 0 2px; }
+  .bubble ul, .bubble ol { padding-left: 16px; margin: 3px 0; }
   .bubble li { margin: 2px 0; }
-  .bubble hr { border: none; border-top: 1px solid #e2e5ea; margin: 8px 0; }
+  .bubble hr { border: none; border-top: 1px solid #e2e5ea; margin: 6px 0; }
 
   /* ── Agent activity ── */
-  .agent-activity { display: flex; flex-direction: column; gap: 3px; }
+  .agent-activity { display: flex; flex-direction: column; gap: 2px; }
 
   .tool-block {
     background: #fff;
     border: 1px solid #e2e5ea;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .tool-header {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7px 12px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px;
     cursor: pointer; user-select: none;
     transition: background .12s;
   }
   .tool-header:hover { background: #f8f9fa; }
 
   .tool-badge {
-    font-size: 9px; font-weight: 700; letter-spacing: .06em;
+    font-size: 8px; font-weight: 700; letter-spacing: .06em;
     text-transform: uppercase;
     background: #eff6ff; color: #2563eb;
     border: 1px solid #bfdbfe;
-    padding: 1px 6px; border-radius: 3px;
+    padding: 1px 5px; border-radius: 3px;
     flex-shrink: 0;
   }
   .tool-name {
-    font-family: "Menlo", "Consolas", monospace;
-    font-size: 12px; color: #374151; flex: 1;
+    font-family: "Menlo", monospace;
+    font-size: 11px; color: #374151; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .tool-name .tool-prefix { color: #9ca3af; }
   .tool-chevron {
-    font-size: 10px; color: #9ca3af;
+    font-size: 9px; color: #9ca3af;
     transition: transform .18s; flex-shrink: 0;
   }
   .tool-block.open .tool-chevron { transform: rotate(90deg); }
@@ -120,14 +129,14 @@
   .tool-section { border-top: 1px solid #f3f4f6; }
   .tool-section:first-child { border-top: none; }
   .tool-section-label {
-    font-size: 9px; font-weight: 700; letter-spacing: .1em;
-    text-transform: uppercase; padding: 6px 12px 2px; color: #9ca3af;
+    font-size: 8px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; padding: 5px 10px 1px; color: #9ca3af;
   }
   .tool-json {
-    padding: 4px 12px 10px;
-    font-size: 11px; font-family: "Menlo", "Consolas", monospace;
+    padding: 3px 10px 8px;
+    font-size: 10px; font-family: "Menlo", monospace;
     white-space: pre-wrap; overflow-x: auto;
-    max-height: 220px; line-height: 1.5; color: #374151;
+    max-height: 180px; line-height: 1.4; color: #374151;
   }
   .j-key  { color: #7c3aed; }
   .j-str  { color: #059669; }
@@ -136,53 +145,217 @@
   .j-null { color: #9ca3af; }
 
   /* ── Suggestions ── */
-  .suggestions { display: flex; flex-wrap: wrap; gap: 7px; padding: 2px 0 0; }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 0 0; }
   .sug-btn {
     background: #fff; border: 1px solid #d1d5db;
-    color: #374151; padding: 5px 12px; border-radius: 999px;
-    font-size: 12px; cursor: pointer; transition: all .15s;
+    color: #374151; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; cursor: pointer; transition: all .15s;
     font-family: inherit;
   }
   .sug-btn:hover { border-color: #2563eb; color: #2563eb; }
 
+  /* ── Replay visualization button ── */
+  .viz-replay {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #eff6ff; border: 1px solid #bfdbfe;
+    color: #2563eb; padding: 3px 9px; border-radius: 999px;
+    font-size: 10px; font-weight: 500; cursor: pointer;
+    transition: all .15s; margin-top: 3px;
+    font-family: inherit;
+  }
+  .viz-replay:hover { background: #dbeafe; border-color: #93c5fd; }
+  .viz-replay .viz-icon { font-size: 11px; }
+
+  /* ── Route cards ── */
+  .route-cards { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .route-card {
+    background: #fff; border: 1px solid #e2e5ea; border-radius: 8px;
+    overflow: hidden; cursor: pointer; transition: border-color .15s;
+  }
+  .route-card:hover { border-color: #93c5fd; }
+  .route-card.selected { border-color: #2563eb; background: #f0f7ff; }
+  .route-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+  }
+  .route-card-title { font-size: 12px; font-weight: 600; color: #1a1a2e; }
+  .route-card-meta { font-size: 10px; color: #6b7280; }
+  .route-card-legs {
+    display: none; padding: 4px 12px 8px;
+    border-top: 1px solid #f3f4f6;
+    flex-direction: column; gap: 3px;
+  }
+  .route-card.selected .route-card-legs { display: flex; }
+  .route-leg {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: #374151;
+  }
+  .leg-badge {
+    font-size: 10px; font-weight: 700; border-radius: 4px;
+    padding: 2px 6px; color: #fff; white-space: nowrap;
+    min-width: 28px; text-align: center;
+  }
+  .leg-badge.mode-walk { background: #6b7280; }
+  .leg-badge.mode-subway { background: #7c3aed; }
+  .leg-badge.mode-bus { background: #2563eb; }
+  .leg-badge.mode-tram { background: #059669; }
+  .leg-badge.mode-rail { background: #92400e; }
+  .leg-badge.mode-ferry { background: #0e7490; }
+
   /* ── Thinking ── */
   .thinking {
     display: flex; align-items: center; gap: 8px;
-    font-size: 13px; color: #9ca3af;
-    padding: 11px 15px;
-    background: #fff; border-radius: 16px; border-bottom-left-radius: 4px;
+    font-size: 12px; color: #9ca3af;
+    padding: 10px 14px;
+    background: #fff; border-radius: 14px; border-bottom-left-radius: 4px;
     border: 1px solid #e2e5ea;
   }
   .dots span {
-    display: inline-block; width: 5px; height: 5px;
+    display: inline-block; width: 4px; height: 4px;
     border-radius: 50%; background: #9ca3af;
     animation: bounce .9s infinite; margin: 0 1px;
   }
   .dots span:nth-child(2) { animation-delay: .15s; }
   .dots span:nth-child(3) { animation-delay: .3s; }
-  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-4px)} }
 
   /* ── Input ── */
   .input-row {
     display: flex; gap: 8px;
-    padding: 10px 0 20px; flex-shrink: 0;
+    padding: 10px 14px 14px; flex-shrink: 0;
+    border-top: 1px solid #e2e5ea;
+    background: #fff;
   }
   #input {
     flex: 1;
-    background: #fff; border: 1px solid #d1d5db; border-radius: 24px;
-    padding: 11px 18px; color: #1a1a2e; font-size: 14px;
+    background: #f8f9fa; border: 1px solid #d1d5db; border-radius: 20px;
+    padding: 10px 16px; color: #1a1a2e; font-size: 13px;
     outline: none; transition: border-color .15s; font-family: inherit;
   }
-  #input:focus { border-color: #2563eb; }
+  #input:focus { border-color: #2563eb; background: #fff; }
   #input::placeholder { color: #9ca3af; }
   #send {
     background: #2563eb; border: none; border-radius: 50%;
-    width: 44px; height: 44px; color: #fff; font-size: 17px;
+    width: 40px; height: 40px; color: #fff; font-size: 15px;
     cursor: pointer; flex-shrink: 0; transition: background .15s;
     display: flex; align-items: center; justify-content: center;
   }
   #send:hover:not(:disabled) { background: #1d4ed8; }
   #send:disabled { background: #d1d5db; cursor: not-allowed; }
+
+  /* ── Right panel: map + chart ── */
+  .map-panel {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    position: relative;
+  }
+
+  #map { flex: 1; min-height: 0; }
+
+
+  /* ── Chart overlay ── */
+  .chart-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 0; overflow: hidden;
+    transition: height .3s ease;
+    background: #fff;
+    border-top: 1px solid #e2e5ea;
+    z-index: 600;
+  }
+  .chart-overlay.open { height: 240px; }
+  .chart-overlay-inner {
+    padding: 12px 16px;
+    height: 100%;
+    display: flex; flex-direction: column;
+  }
+  .chart-title {
+    font-size: 12px; font-weight: 600; color: #374151;
+    margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chart-close {
+    background: none; border: none; font-size: 16px; color: #9ca3af;
+    cursor: pointer; padding: 0 4px;
+  }
+  .chart-close:hover { color: #374151; }
+  .chart-canvas-wrap {
+    flex: 1; min-height: 0; position: relative;
+  }
+  .chart-canvas-wrap canvas {
+    position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important;
+  }
+
+  .map-toast {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    background: #1a1a2e; color: #fff; padding: 6px 14px;
+    border-radius: 8px; font-size: 11px; z-index: 800;
+    opacity: 0; transition: opacity .3s;
+    pointer-events: none;
+  }
+  .map-toast.show { opacity: .9; }
+
+  /* ── Empty map state ── */
+  .map-empty-state {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; color: #9ca3af; z-index: 500;
+    pointer-events: none;
+  }
+  .map-empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: .5; }
+  .map-empty-state p { font-size: 12px; max-width: 200px; line-height: 1.5; }
+  .map-empty-state.hidden { display: none; }
+
+  /* Pin labels */
+  .pin-label {
+    background: #1a1a2e !important; color: #fff !important;
+    border: none !important; border-radius: 4px !important;
+    padding: 2px 7px !important; font-size: 11px !important;
+    font-weight: 500 !important; box-shadow: 0 2px 4px rgba(0,0,0,.2) !important;
+    white-space: nowrap !important;
+  }
+  .pin-label::before { border-top-color: #1a1a2e !important; }
+
+  /* ── Mobile toggle ── */
+  .mobile-toggle {
+    display: none;
+    position: fixed; bottom: 80px; right: 16px; z-index: 1100;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: #2563eb; color: #fff; border: none;
+    box-shadow: 0 2px 8px rgba(37,99,235,.4);
+    font-size: 20px; cursor: pointer;
+    align-items: center; justify-content: center;
+  }
+  .mobile-toggle.has-update {
+    animation: pulse-ring 1.5s ease-out 1;
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(37,99,235,.5); }
+    100% { box-shadow: 0 0 0 12px rgba(37,99,235,0); }
+  }
+
+  /* ── Mobile layout ── */
+  @media (max-width: 768px) {
+    .main-layout { flex-direction: column; position: relative; }
+
+    .chat-panel {
+      width: 100%; min-width: 0;
+      border-right: none;
+      position: absolute; inset: 0; z-index: 10;
+      transition: transform .3s ease;
+    }
+    .chat-panel.hidden { transform: translateX(-100%); pointer-events: none; }
+
+    .map-panel {
+      position: absolute; inset: 0; z-index: 5;
+    }
+
+    .mobile-toggle { display: flex; }
+
+    body.show-map .chat-panel { transform: translateX(-100%); pointer-events: none; }
+    body.show-map .mobile-toggle .toggle-icon::after { content: "💬"; }
+    body:not(.show-map) .mobile-toggle .toggle-icon::after { content: "🗺"; }
+
+    .input-row { padding-bottom: 20px; }
+    #input { font-size: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -193,23 +366,47 @@
   <span class="header-sub">AWS Bedrock + MCP</span>
 </header>
 
-<div class="chat-wrapper">
-  <div class="messages" id="messages">
-    <div class="msg assistant">
-      <div class="bubble">Hi! I'm your Barcelona city assistant. Ask me about getting around, air quality, weather, Bicing bikes, UV index, or pollen.</div>
-      <div class="suggestions">
-        <button class="sug-btn" onclick="send('Is today a good day to cycle in Barcelona?')">Good day to cycle?</button>
-        <button class="sug-btn" onclick="send('What is the air quality near Eixample right now?')">Air quality near Eixample</button>
-        <button class="sug-btn" onclick="send('Are there Bicing bikes near Sagrada Familia?')">Bicing near Sagrada Familia</button>
-        <button class="sug-btn" onclick="send('What is the weather and UV like today?')">Weather and UV today</button>
+<button class="mobile-toggle" id="mobile-toggle"><span class="toggle-icon"></span></button>
+<div class="main-layout">
+  <!-- Chat panel -->
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="msg assistant">
+        <div class="bubble">Hi! I'm your Barcelona city assistant. Ask me about air quality, weather, Bicing, transit, UV, or pollen — I'll show results on the map.</div>
+        <div class="suggestions" id="initial-suggestions">
+          <button class="sug-btn" data-q="Show me air quality stations near Eixample on the map">Air quality near Eixample</button>
+          <button class="sug-btn" data-q="Is today a good day to cycle? Show bike stations near Sagrada Familia">Good day to cycle?</button>
+          <button class="sug-btn" data-q="Route from Sants station to Barceloneta by transit, show it on the map">Sants to Barceloneta</button>
+          <button class="sug-btn" data-q="What's the UV and pollen like today?">UV &amp; pollen today</button>
+        </div>
       </div>
+    </div>
+
+    <div class="input-row">
+      <input id="input" placeholder="Ask about Barcelona..." autocomplete="off">
+      <button id="send">&#8593;</button>
     </div>
   </div>
 
-  <div class="input-row">
-    <input id="input" placeholder="Ask about Barcelona..." autocomplete="off"
-           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}">
-    <button id="send" onclick="send()">&#8593;</button>
+  <!-- Map panel -->
+  <div class="map-panel">
+    <div id="map"></div>
+    <div class="map-empty-state" id="map-empty">
+      <div class="empty-icon">&#127758;</div>
+      <p>Ask a question and I'll show locations, routes, and data on the map</p>
+    </div>
+    <div class="map-toast" id="map-toast"></div>
+    <div class="chart-overlay" id="chart-overlay">
+      <div class="chart-overlay-inner">
+        <div class="chart-title">
+          <span id="chart-title-text"></span>
+          <button class="chart-close" id="chart-close">&times;</button>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-canvas"></canvas>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -217,22 +414,281 @@
 const API_URL = "https://386ccled52.execute-api.eu-west-1.amazonaws.com/prod/chat";
 
 const FOLLOW_UPS = [
-  "What pollen levels should I expect this week?",
-  "How do I get from Gracia to Barceloneta by transit?",
-  "Which area has the best air quality right now?",
-  "Is it safe to run outside today?",
-  "What is the UV risk this afternoon?",
-  "Are there bikes available near Placa Catalunya?",
+  "Show pollen levels and mark stations on the map",
+  "How do I get from Gracia to Barceloneta? Show the route",
+  "Which area has the best air quality? Pin them on the map",
+  "Show Bicing stations near Plaça Catalunya",
+  "Compare air quality readings as a chart",
+  "Are there bikes available near Passeig de Gracia?",
 ];
 
 let history = [];
-let busy    = false;
+let busy = false;
 let followIdx = 0;
+let userLocation = null;
+
+// Request geolocation on load
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    },
+    () => {},
+    { enableHighAccuracy: false, timeout: 5000 }
+  );
+}
 
 const messagesEl = document.getElementById("messages");
-const inputEl    = document.getElementById("input");
-const sendBtn    = document.getElementById("send");
+const inputEl = document.getElementById("input");
+const sendBtn = document.getElementById("send");
 
+// ── Map setup ──
+const map = L.map("map").setView([41.3874, 2.1686], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; OpenStreetMap',
+  maxZoom: 19
+}).addTo(map);
+
+let mapMarkers = [];
+let mapRoutes = [];
+let currentChart = null;
+let mapHasContent = false;
+
+function hideEmptyState() {
+  document.getElementById("map-empty").classList.add("hidden");
+  mapHasContent = true;
+}
+
+function showToast(text) {
+  const toast = document.getElementById("map-toast");
+  toast.textContent = text;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 3000);
+}
+
+function clearMap() {
+  mapMarkers.forEach(m => map.removeLayer(m));
+  mapMarkers = [];
+  mapRoutes.forEach(r => map.removeLayer(r));
+  mapRoutes = [];
+  clearRoutes();
+}
+
+function addPin(lat, lon, label, color) {
+  hideEmptyState();
+  const markerColor = color || "#2563eb";
+  const icon = L.divIcon({
+    className: "",
+    html: `<div style="
+      position:relative;
+      background:${markerColor}; width:22px; height:22px; border-radius:50%;
+      border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.35);
+    "></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
+  });
+  const marker = L.marker([lat, lon], { icon }).addTo(map);
+  if (label) {
+    marker.bindPopup(`<b>${escHtml(label)}</b>`);
+    marker.bindTooltip(escHtml(label), {
+      permanent: true, direction: "top", offset: [0, -14],
+      className: "pin-label"
+    });
+  }
+  mapMarkers.push(marker);
+  return marker;
+}
+
+function showRoute(coords, color) {
+  hideEmptyState();
+  const lineColor = color || "#2563eb";
+  const polyline = L.polyline(coords, { color: lineColor, weight: 4, opacity: 0.8 }).addTo(map);
+  mapRoutes.push(polyline);
+  return polyline;
+}
+
+function panTo(lat, lon, zoom) {
+  map.setView([lat, lon], zoom || 14, { animate: true });
+}
+
+function fitPins() {
+  const allLayers = [...mapMarkers, ...mapRoutes];
+  if (!allLayers.length) return;
+  const group = L.featureGroup(allLayers);
+  map.fitBounds(group.getBounds().pad(0.15), { animate: true });
+}
+
+// ── Chart ──
+function showChartPanel(chartType, data, title) {
+  const overlay = document.getElementById("chart-overlay");
+  const canvas = document.getElementById("chart-canvas");
+  document.getElementById("chart-title-text").textContent = title || "Chart";
+
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+
+  overlay.classList.add("open");
+
+  setTimeout(() => {
+    currentChart = new Chart(canvas, {
+      type: chartType || "bar",
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: data.datasets && data.datasets.length > 1 } },
+        scales: chartType === "doughnut" ? {} : { y: { beginAtZero: true } }
+      }
+    });
+  }, 50);
+}
+
+function hideChart() {
+  document.getElementById("chart-overlay").classList.remove("open");
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+}
+
+document.getElementById("chart-close").addEventListener("click", hideChart);
+
+// ── Route drawing ──
+let routeLayers = [];
+
+function clearRoutes() {
+  routeLayers.forEach(l => map.removeLayer(l));
+  routeLayers = [];
+}
+
+function drawRoute(route) {
+  clearRoutes();
+  hideEmptyState();
+  const bounds = [];
+
+  route.legs.forEach(leg => {
+    if (!leg.latlngs || !leg.latlngs.length) return;
+    bounds.push(...leg.latlngs);
+    const opts = leg.dashed
+      ? { color: leg.color, weight: 4, dashArray: "8 6", opacity: 0.7 }
+      : { color: leg.color, weight: 5, opacity: 0.85 };
+    const poly = L.polyline(leg.latlngs, opts).addTo(map);
+    const popupText = leg.mode === "walk"
+      ? `Walk ${leg.distance_m}m`
+      : `${leg.line} → ${leg.headsign}`;
+    poly.bindPopup(popupText);
+    routeLayers.push(poly);
+  });
+
+  if (bounds.length) {
+    map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], animate: true });
+  }
+}
+
+function buildRouteCards(routeData, container) {
+  const wrap = document.createElement("div");
+  wrap.className = "route-cards";
+
+  routeData.routes.forEach((route, idx) => {
+    const card = document.createElement("div");
+    card.className = "route-card" + (idx === 0 ? " selected" : "");
+
+    const header = document.createElement("div");
+    header.className = "route-card-header";
+
+    const title = document.createElement("span");
+    title.className = "route-card-title";
+    title.textContent = `Option ${idx + 1} — ${route.total_min || "?"} min`;
+
+    const meta = document.createElement("span");
+    meta.className = "route-card-meta";
+    meta.textContent = `${route.transfers} transfer${route.transfers !== 1 ? "s" : ""}`;
+
+    header.appendChild(title);
+    header.appendChild(meta);
+    card.appendChild(header);
+
+    const legsDiv = document.createElement("div");
+    legsDiv.className = "route-card-legs";
+    route.legs.forEach(leg => {
+      const legEl = document.createElement("div");
+      legEl.className = "route-leg";
+      const badge = document.createElement("span");
+      badge.className = `leg-badge mode-${leg.mode}`;
+      if (leg.line && leg.mode !== "walk") {
+        badge.textContent = leg.line;
+        const lineColors = {
+          "L1":"#e63946","L2":"#9b59b6","L3":"#2d7d46","L4":"#f4a261",
+          "L5":"#2563eb","L6":"#7c3aed","L7":"#b45309","L8":"#ec4899",
+          "L9":"#f97316","L9N":"#f97316","L9S":"#f97316",
+          "L10":"#06b6d4","L10N":"#06b6d4","L10S":"#06b6d4","L11":"#84cc16",
+          "T1":"#059669","T2":"#059669","T3":"#059669","T4":"#059669",
+        };
+        const lineColor = lineColors[leg.line];
+        if (lineColor) badge.style.background = lineColor;
+      } else {
+        badge.textContent = leg.mode === "walk" ? "Walk" : leg.mode;
+      }
+      const desc = document.createElement("span");
+      desc.textContent = leg.mode === "walk"
+        ? `${leg.distance_m}m → ${leg.to}`
+        : `${leg.from} → ${leg.to} (${leg.duration_min} min)`;
+      legEl.appendChild(badge);
+      legEl.appendChild(desc);
+      legsDiv.appendChild(legEl);
+    });
+    card.appendChild(legsDiv);
+
+    card.addEventListener("click", () => {
+      wrap.querySelectorAll(".route-card").forEach(c => c.classList.remove("selected"));
+      card.classList.add("selected");
+      drawRoute(route);
+    });
+
+    wrap.appendChild(card);
+  });
+
+  // Auto-draw first route
+  if (routeData.routes.length) drawRoute(routeData.routes[0]);
+
+  return wrap;
+}
+
+// ── Process UI commands ──
+function processUiCommands(commands, msgContainer) {
+  if (!commands || !commands.length) return;
+
+  let hasPins = false;
+  let routeCmd = null;
+
+  // Process clears first, then pins/charts, routes last
+  commands.forEach(cmd => {
+    if (cmd.type === "map" && cmd.action === "clear") {
+      clearMap();
+      clearRoutes();
+    }
+  });
+  commands.forEach(cmd => {
+    if (cmd.type === "map" && cmd.action !== "clear") {
+      if (cmd.action === "add_pins") {
+        (cmd.pins || []).forEach(p => addPin(p.lat, p.lon, p.label, p.color));
+        hasPins = true;
+      } else if (cmd.action === "pan_to") {
+        panTo(cmd.lat, cmd.lon, cmd.zoom);
+      }
+    } else if (cmd.type === "chart") {
+      showChartPanel(cmd.chart_type, cmd.data, cmd.title);
+    } else if (cmd.type === "routes") {
+      routeCmd = cmd;
+    }
+  });
+
+  if (hasPins) fitPins();
+
+  // Routes drawn last so they aren't wiped by clear
+  if (routeCmd && msgContainer) {
+    const routeCards = buildRouteCards(routeCmd, msgContainer);
+    msgContainer.appendChild(routeCards);
+  }
+}
+
+// ── Chat logic ──
 function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
 
 function renderMd(text) {
@@ -270,10 +726,14 @@ function hlJson(val, depth) {
   return `{\n${items}\n${pad}}`;
 }
 
+function escHtml(t) {
+  return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
 function buildToolBlock(tc) {
-  const rawName   = tc.tool || "";
+  const rawName = tc.tool || "";
   const shortName = rawName.replace(/^barcelona-mcp-server___/, "");
-  const prefix    = rawName !== shortName ? "barcelona-mcp-server___" : "";
+  const prefix = rawName !== shortName ? "barcelona-mcp-server___" : "";
 
   const block = document.createElement("div");
   block.className = "tool-block";
@@ -283,11 +743,11 @@ function buildToolBlock(tc) {
 
   const badge = document.createElement("span");
   badge.className = "tool-badge";
-  badge.textContent = "tool call";
+  badge.textContent = "tool";
 
   const nameEl = document.createElement("span");
   nameEl.className = "tool-name";
-  nameEl.innerHTML = `<span class="tool-prefix">${escHtml(prefix)}</span>${escHtml(shortName)}`;
+  nameEl.innerHTML = prefix ? `<span class="tool-prefix">${escHtml(prefix)}</span>${escHtml(shortName)}` : escHtml(shortName);
 
   const chevron = document.createElement("span");
   chevron.className = "tool-chevron";
@@ -296,7 +756,7 @@ function buildToolBlock(tc) {
   header.appendChild(badge);
   header.appendChild(nameEl);
   header.appendChild(chevron);
-  header.addEventListener("click", function() { block.classList.toggle("open"); });
+  header.addEventListener("click", () => block.classList.toggle("open"));
   block.appendChild(header);
 
   const body = document.createElement("div");
@@ -312,7 +772,6 @@ function buildToolBlock(tc) {
     sec.appendChild(pre);
     body.appendChild(sec);
   }
-
   if (tc.result !== undefined) {
     const sec = document.createElement("div");
     sec.className = "tool-section";
@@ -328,7 +787,7 @@ function buildToolBlock(tc) {
   return block;
 }
 
-function addMsg(role, text, toolCalls) {
+function addMsg(role, text, toolCalls, uiCommands) {
   const div = document.createElement("div");
   div.className = "msg " + role;
 
@@ -341,14 +800,49 @@ function addMsg(role, text, toolCalls) {
     if (toolCalls && toolCalls.length) {
       const activity = document.createElement("div");
       activity.className = "agent-activity";
-      toolCalls.forEach(function(tc) { activity.appendChild(buildToolBlock(tc)); });
+      toolCalls.forEach(tc => activity.appendChild(buildToolBlock(tc)));
       div.appendChild(activity);
     }
 
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.innerHTML = renderMd(text);
-    div.appendChild(bubble);
+    if (text && text.trim()) {
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerHTML = renderMd(text);
+      div.appendChild(bubble);
+    }
+
+    // Replay button if this message had visualizations
+    if (uiCommands && uiCommands.length) {
+      const hasMap = uiCommands.some(c => c.type === "map" && c.action !== "clear");
+      const hasChart = uiCommands.some(c => c.type === "chart");
+      const hasRoutes = uiCommands.some(c => c.type === "routes");
+      if (hasMap || hasChart || hasRoutes) {
+        const replayRow = document.createElement("div");
+        replayRow.style.display = "flex";
+        replayRow.style.gap = "5px";
+        replayRow.style.flexWrap = "wrap";
+
+        if (hasMap || hasRoutes) {
+          const btn = document.createElement("button");
+          btn.className = "viz-replay";
+          btn.innerHTML = '<span class="viz-icon">&#128205;</span> Show on map';
+          btn.addEventListener("click", () => {
+            clearMap(); clearRoutes();
+            processUiCommands(uiCommands, div);
+          });
+          replayRow.appendChild(btn);
+        }
+        if (hasChart) {
+          const btn = document.createElement("button");
+          btn.className = "viz-replay";
+          btn.innerHTML = '<span class="viz-icon">&#128200;</span> Show chart';
+          const cmds = uiCommands.filter(c => c.type === "chart");
+          btn.addEventListener("click", () => { processUiCommands(cmds); autoShowMap(); });
+          replayRow.appendChild(btn);
+        }
+        div.appendChild(replayRow);
+      }
+    }
 
     const followUp = FOLLOW_UPS[followIdx % FOLLOW_UPS.length];
     followIdx++;
@@ -357,13 +851,15 @@ function addMsg(role, text, toolCalls) {
     const btn = document.createElement("button");
     btn.className = "sug-btn";
     btn.textContent = followUp;
-    btn.addEventListener("click", function() { send(followUp); });
+    btn.addEventListener("click", () => send(followUp));
     sugg.appendChild(btn);
     div.appendChild(sugg);
   }
 
   messagesEl.appendChild(div);
   scrollBottom();
+
+  if (uiCommands) processUiCommands(uiCommands, div);
 }
 
 function addThinking() {
@@ -376,13 +872,6 @@ function addThinking() {
   messagesEl.appendChild(div);
   scrollBottom();
   return div;
-}
-
-function escHtml(t) {
-  return String(t)
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;");
 }
 
 async function send(prefill) {
@@ -401,7 +890,7 @@ async function send(prefill) {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, history: history }),
+      body: JSON.stringify({ message: text, history: history, user_location: userLocation }),
     });
     const data = await res.json();
     thinking.remove();
@@ -409,8 +898,8 @@ async function send(prefill) {
     if (data.error) {
       addMsg("assistant", "Sorry, something went wrong: " + data.error);
     } else {
-      addMsg("assistant", data.response, data.tool_calls);
-      history.push({ role: "user",      content: text });
+      addMsg("assistant", data.response, data.tool_calls, data.ui_commands);
+      history.push({ role: "user", content: text });
       history.push({ role: "assistant", content: data.response });
       if (history.length > 12) history = history.slice(-12);
     }
@@ -421,10 +910,46 @@ async function send(prefill) {
 
   busy = false;
   sendBtn.disabled = false;
-  inputEl.focus();
+  if (window.innerWidth > 768) inputEl.focus();
 }
 
-inputEl.focus();
+// Event listeners
+inputEl.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+sendBtn.addEventListener("click", () => send());
+
+document.getElementById("initial-suggestions").addEventListener("click", e => {
+  if (e.target.classList.contains("sug-btn")) {
+    send(e.target.dataset.q);
+  }
+});
+
+// ── Mobile toggle ──
+const mobileToggle = document.getElementById("mobile-toggle");
+mobileToggle.addEventListener("click", () => {
+  document.body.classList.toggle("show-map");
+});
+
+function autoShowMap() {
+  if (window.innerWidth <= 768 && !document.body.classList.contains("show-map")) {
+    document.body.classList.add("show-map");
+    mobileToggle.classList.add("has-update");
+    setTimeout(() => mobileToggle.classList.remove("has-update"), 1500);
+  }
+}
+
+// Hook into map/chart updates to auto-switch on mobile
+const _origHideEmptyState = hideEmptyState;
+hideEmptyState = function() { _origHideEmptyState(); autoShowMap(); };
+
+const _origShowChartPanel = showChartPanel;
+showChartPanel = function(chartType, data, title) {
+  _origShowChartPanel(chartType, data, title);
+  autoShowMap();
+};
+
+if (window.innerWidth > 768) inputEl.focus();
 </script>
 </body>
 </html>

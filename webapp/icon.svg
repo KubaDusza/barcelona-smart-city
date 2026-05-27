@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="96" fill="#2563eb"/>
+  <circle cx="100" cy="100" r="88" fill="#1d4ed8"/>
+
+  <!-- Sagrada Familia silhouette (simplified) -->
+  <g fill="#fff">
+    <!-- Central tower -->
+    <rect x="94" y="52" width="12" height="60" rx="2"/>
+    <polygon points="100,42 92,56 108,56"/>
+    <!-- Left tower -->
+    <rect x="72" y="64" width="10" height="48" rx="2"/>
+    <polygon points="77,56 70,68 84,68"/>
+    <!-- Right tower -->
+    <rect x="118" y="64" width="10" height="48" rx="2"/>
+    <polygon points="123,56 116,68 130,68"/>
+    <!-- Base -->
+    <rect x="66" y="108" width="68" height="8" rx="3"/>
+  </g>
+
+  <!-- Data nodes / network dots -->
+  <g fill="#93c5fd">
+    <circle cx="44" cy="130" r="5"/>
+    <circle cx="156" cy="130" r="5"/>
+    <circle cx="36" cy="96" r="4"/>
+    <circle cx="164" cy="96" r="4"/>
+    <circle cx="52" cy="156" r="4"/>
+    <circle cx="148" cy="156" r="4"/>
+  </g>
+
+  <!-- Connection lines -->
+  <g stroke="#93c5fd" stroke-width="1.5" opacity="0.6" fill="none">
+    <line x1="44" y1="130" x2="72" y2="112"/>
+    <line x1="156" y1="130" x2="128" y2="112"/>
+    <line x1="36" y1="96" x2="72" y2="90"/>
+    <line x1="164" y1="96" x2="128" y2="90"/>
+    <line x1="52" y1="156" x2="80" y2="116"/>
+    <line x1="148" y1="156" x2="120" y2="116"/>
+  </g>
+
+  <!-- Small chart bars at bottom -->
+  <g fill="#fff" opacity="0.9">
+    <rect x="76" y="140" width="8" height="20" rx="2"/>
+    <rect x="88" y="134" width="8" height="26" rx="2"/>
+    <rect x="100" y="128" width="8" height="32" rx="2"/>
+    <rect x="112" y="136" width="8" height="24" rx="2"/>
+    <rect x="124" y="142" width="8" height="18" rx="2"/>
+  </g>
+
+  <!-- "BCN" text -->
+  <text x="100" y="183" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="700" fill="#fff" letter-spacing="2">BCN</text>
+</svg>
